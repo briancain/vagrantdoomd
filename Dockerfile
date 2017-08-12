@@ -15,7 +15,7 @@ run     mkdir ~/.vnc
 run     x11vnc -storepasswd 1234 ~/.vnc/passwd
 
 # Setup doom
-run     git clone https://github.com/GideonRed/dockerdoom.git
+run     git clone https://github.com/briancain/dockerdoom.git
 run     wget http://distro.ibiblio.org/pub/linux/distributions/slitaz/sources/packages/d/doom1.wad
 run     cd /dockerdoom/trunk && ./configure && make && make install
 

@@ -183,6 +183,7 @@ func main() {
 	log.Print("Trying to start docker container ...")
 	if !asciiDisplay {
 		dockerRun := fmt.Sprintf("%v run --rm=true -p %v:%v -v %v:/dockerdoom.socket --name=%v %v x11vnc -geometry 640x480 -forever -usepw -create", dockerBinary, vncPort, vncPort, socketFile, containerName, imageName)
+    log.Printf("Running docker command: %v", dockerRun)
 		startCmd(dockerRun)
 		log.Printf("Waiting %v seconds for \"%v\" to show in \"docker ps\". You can change this wait with -dockerWait.", dockerWait, containerName)
 		time.Sleep(time.Duration(dockerWait) * time.Second)

@@ -8,6 +8,23 @@ import (
 	"syscall"
 )
 
+func echoServer(c net.Conn) {
+	for {
+		buf := make([]byte, 512)
+		nr, err := c.Read(buf)
+		if err != nil {
+			return
+		}
+
+		data := buf[0:nr]
+		println("Server got:", string(data))
+		_, err = c.Write(data)
+		if err != nil {
+			log.Fatal("Writing client error: ", err)
+		}
+	}
+}
+
 func main() {
 	log.Println("Starting echo server")
 	socketFile := "/tmp/go.sock"
@@ -29,11 +46,12 @@ func main() {
 
 	for {
 		log.Println("about to listen")
-		_, err := ln.Accept()
+		fd, err := ln.Accept()
 		log.Println("We made it past accept")
 		if err != nil {
 			log.Fatal("Accept error: ", err)
 		}
+		go echoServer(fd)
 
 	}
 }
