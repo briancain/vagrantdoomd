@@ -1,7 +1,5 @@
 package main
 
-//TODO: Make your container die if you die
-
 import (
 	"flag"
 	"fmt"
@@ -9,7 +7,9 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -76,47 +76,66 @@ func checkDocker(dockerName, dockerBinary, arg string) bool {
 	return false
 }
 
-func socketLoop(listener net.Listener, dockerBinary, containerName string) {
-	for true {
+func startServer(listener net.Listener, dockerBinary, containerName string) {
+	log.Println("Starting server...")
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, os.Interrupt, syscall.SIGTERM)
+	go func(listener net.Listener, c chan os.Signal) {
+		sig := <-c
+		log.Printf("Caught signal %s: shutting down.", sig)
+		listener.Close()
+		os.Exit(0)
+	}(listener, sigc)
+
+	for {
+    log.Println("About to listen")
 		conn, err := listener.Accept()
+		log.Println("Made it past listen")
 		if err != nil {
 			panic(err)
 		}
-		stop := false
-		for !stop {
-			bytes := make([]byte, 40960)
-			n, err := conn.Read(bytes)
-			if err != nil {
-				stop = true
-			}
-			bytes = bytes[0:n]
-			strbytes := strings.TrimSpace(string(bytes))
-			if strbytes == "list" {
-				output := outputCmd(fmt.Sprintf("%v ps -q", dockerBinary))
-				//cmd := exec.Command("/usr/bin/docker", "inspect", "-f", "{{.Name}}", "`docker", "ps", "-q`")
-				outputstr := strings.TrimSpace(output)
-				outputparts := strings.Split(outputstr, "\n")
-				for _, part := range outputparts {
-					output := outputCmd(fmt.Sprintf("%v inspect -f {{.Name}} %v", dockerBinary, part))
-					name := strings.TrimSpace(output)
-					name = name[1:len(name)]
-					if name != containerName {
-						_, err = conn.Write([]byte(name + "\n"))
-						if err != nil {
-							log.Fatal("Could not write to socker file")
-						}
+
+		socketLoop(conn, dockerBinary, containerName)
+	}
+}
+
+func socketLoop(conn net.Conn, dockerBinary, containerName string) {
+	stop := false
+	for !stop {
+		bytes := make([]byte, 40960)
+		n, err := conn.Read(bytes)
+		if err != nil {
+			stop = true
+		}
+		bytes = bytes[0:n]
+		strbytes := strings.TrimSpace(string(bytes))
+		log.Print(strbytes)
+		if strbytes == "list" {
+			output := outputCmd(fmt.Sprintf("%v ps -q", dockerBinary))
+			//cmd := exec.Command("/usr/bin/docker", "inspect", "-f", "{{.Name}}", "`docker", "ps", "-q`")
+			outputstr := strings.TrimSpace(output)
+			outputparts := strings.Split(outputstr, "\n")
+			for _, part := range outputparts {
+				output := outputCmd(fmt.Sprintf("%v inspect -f {{.Name}} %v", dockerBinary, part))
+				name := strings.TrimSpace(output)
+				name = name[1:len(name)]
+				log.Printf("container name: %s", name)
+				if name != containerName {
+					_, err = conn.Write([]byte(name + "\n"))
+					if err != nil {
+						log.Fatal("Could not write to socker file")
 					}
 				}
-				conn.Close()
-				stop = true
-			} else if strings.HasPrefix(strbytes, "kill ") {
-				parts := strings.Split(strbytes, " ")
-				docker_id := strings.TrimSpace(parts[1])
-				cmd := exec.Command(dockerBinary, "rm", "-f", docker_id)
-				go cmd.Run()
-				conn.Close()
-				stop = true
 			}
+			conn.Close()
+			stop = true
+		} else if strings.HasPrefix(strbytes, "kill ") {
+			parts := strings.Split(strbytes, " ")
+			docker_id := strings.TrimSpace(parts[1])
+			cmd := exec.Command(dockerBinary, "rm", "-f", docker_id)
+			go cmd.Run()
+			conn.Close()
+			stop = true
 		}
 	}
 }
@@ -157,6 +176,8 @@ func main() {
 	listener, err := net.Listen("unix", socketFile)
 	if err != nil {
 		log.Fatalf("Could not create socket file %v.\nYou could use \"rm -f %v\"", socketFile, socketFile)
+	} else {
+		log.Printf("Created socket file at: %v", socketFile)
 	}
 
 	log.Print("Trying to start docker container ...")
@@ -175,5 +196,5 @@ func main() {
 		startCmd(dockerRun)
 	}
 
-	socketLoop(listener, dockerBinary, containerName)
+	startServer(listener, dockerBinary, containerName)
 }
