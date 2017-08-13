@@ -13,6 +13,12 @@ import (
 	"time"
 )
 
+const (
+	CONN_HOST = "localhost"
+	CONN_PORT = "8888"
+	CONN_TYPE = "tcp"
+)
+
 func runCmd(cmdstring string) {
 	parts := strings.Split(cmdstring, " ")
 	cmd := exec.Command(parts[0], parts[1:len(parts)]...)
@@ -88,11 +94,12 @@ func startServer(listener net.Listener, dockerBinary, containerName string) {
 	}(listener, sigc)
 
 	for {
-    log.Println("About to listen")
+		log.Println("About to listen")
 		conn, err := listener.Accept()
 		log.Println("Made it past listen")
 		if err != nil {
-			panic(err)
+			log.Fatalf("There was an error after accepting the listening: ", err)
+			os.Exit(1)
 		}
 
 		socketLoop(conn, dockerBinary, containerName)
@@ -140,6 +147,31 @@ func socketLoop(conn net.Conn, dockerBinary, containerName string) {
 	}
 }
 
+func cleanup() {
+
+}
+
+func createSocket(socketFileFormat string) (net.Listener, string) {
+	socketFile := fmt.Sprintf(socketFileFormat, time.Now().Unix())
+	listener, err := net.Listen("unix", socketFile)
+	if err != nil {
+		log.Fatalf("Could not create socket file %v.\nYou could use \"rm -f %v\"", socketFile, socketFile)
+	} else {
+		log.Printf("Created socket file at: %v", socketFile)
+	}
+	return listener, socketFile
+}
+
+func createTCP() net.Listener {
+	listener, err := net.Listen(CONN_TYPE, CONN_HOST+":"+CONN_PORT)
+	if err != nil {
+		log.Fatalf("Could not create %v server at %v:%v %v", CONN_TYPE, CONN_HOST, CONN_PORT, err.Error())
+	}
+
+	//defer listener.Close()
+	return listener
+}
+
 func main() {
 	var socketFileFormat, containerName, vncPort, dockerBinary, imageName, dockerfile string
 	var dockerWait int
@@ -150,7 +182,7 @@ func main() {
 	flag.StringVar(&vncPort, "vncPort", "5900", "Port to open for VNC Viewer")
 	flag.StringVar(&dockerBinary, "dockerBinary", "/usr/bin/docker", "docker binary")
 	flag.BoolVar(&buildImage, "buildImage", false, "Build docker image instead of pulling it from docker image repo")
-	flag.StringVar(&imageName, "imageName", "gideonred/dockerdoom", "Name of docker image to use")
+	flag.StringVar(&imageName, "imageName", "briancain/dockerdoom", "Name of docker image to use")
 	flag.StringVar(&dockerfile, "dockerfile", ".", "Path to dockerdoom's Dockerfile")
 	flag.BoolVar(&asciiDisplay, "asciiDisplay", false, "Don't use fancy vnc, throw DOOM straightup on my terminal screen")
 	flag.Parse()
@@ -172,18 +204,14 @@ func main() {
 		log.Fatalf("\"%v\" was present in the output of \"docker ps -a\",\nplease remove before trying again. You could use \"docker rm -f %v\"\n", containerName, containerName)
 	}
 
-	socketFile := fmt.Sprintf(socketFileFormat, time.Now().Unix())
-	listener, err := net.Listen("unix", socketFile)
-	if err != nil {
-		log.Fatalf("Could not create socket file %v.\nYou could use \"rm -f %v\"", socketFile, socketFile)
-	} else {
-		log.Printf("Created socket file at: %v", socketFile)
-	}
+	//listener,socketFile := createSocket(socketFileFormat)
+	listener := createTCP()
 
 	log.Print("Trying to start docker container ...")
 	if !asciiDisplay {
-		dockerRun := fmt.Sprintf("%v run --rm=true -p %v:%v -v %v:/dockerdoom.socket --name=%v %v x11vnc -geometry 640x480 -forever -usepw -create", dockerBinary, vncPort, vncPort, socketFile, containerName, imageName)
-    log.Printf("Running docker command: %v", dockerRun)
+		//dockerRun := fmt.Sprintf("%v run --rm=true -p %v:%v -v %v:/dockerdoom.socket --name=%v %v x11vnc -geometry 640x480 -forever -usepw -create", dockerBinary, vncPort, vncPort, socketFile, containerName, imageName)
+		dockerRun := fmt.Sprintf("%v run --rm=true -it -p %v:%v -p 8888 --name=%v %v x11vnc -geometry 640x480 -forever -usepw -create", dockerBinary, vncPort, vncPort, containerName, imageName)
+		log.Printf("Running docker command: %v", dockerRun)
 		startCmd(dockerRun)
 		log.Printf("Waiting %v seconds for \"%v\" to show in \"docker ps\". You can change this wait with -dockerWait.", dockerWait, containerName)
 		time.Sleep(time.Duration(dockerWait) * time.Second)
@@ -193,7 +221,7 @@ func main() {
 		}
 		log.Print("Docker container started, you can now connect to it with a VNC viewer at port 5900")
 	} else {
-		dockerRun := fmt.Sprintf("%v run -t -i --rm=true -p %v:%v -v %v:/dockerdoom.socket --name=%v %v /bin/bash", dockerBinary, vncPort, vncPort, socketFile, containerName, imageName)
+		dockerRun := fmt.Sprintf("%v run -it --rm=true -p %v:%v p 8888 --name=%v %v /bin/bash", dockerBinary, vncPort, vncPort, containerName, imageName)
 		startCmd(dockerRun)
 	}
 
