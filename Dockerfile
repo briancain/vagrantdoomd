@@ -19,5 +19,5 @@ run     git clone https://github.com/briancain/dockerdoom.git
 run     wget http://distro.ibiblio.org/pub/linux/distributions/slitaz/sources/packages/d/doom1.wad
 run     cd /dockerdoom/trunk && ./configure && make && make install
 
-# Autostart firefox (might not be the best way to do it, but it does the trick)
+# Autostart doom (might not be the best way to do it, but it does the trick)
 run     bash -c 'echo "/usr/local/games/psdoom -warp E1M1" >> /root/.bashrc'
