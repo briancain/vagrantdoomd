@@ -4,9 +4,9 @@
 Vagrant.configure("2") do |config|
   config.vm.box = "hashicorp/precise64"
 
-  config.vm.define "lawl" do |vm|
+  config.vm.define "vagrantvm1" do |vm|
   end
 
-  config.vm.define "hax" do |vm|
+  config.vm.define "vagrantvm2" do |vm|
   end
 end

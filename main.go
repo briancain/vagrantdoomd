@@ -223,7 +223,7 @@ func createTCP() net.Listener {
 }
 
 func main() {
-	var socketFileFormat, containerName, vncPort, dockerBinary, imageName, dockerfile string
+	var socketFileFormat, containerName, vncPort, vagrantBinary, dockerBinary, imageName, dockerfile string
 	var dockerWait int
 	var buildImage, asciiDisplay bool
 	flag.StringVar(&socketFileFormat, "socketFileFormat", "/tmp/dockerdoom%v.socket", "Location and format of the socket file")
@@ -231,6 +231,7 @@ func main() {
 	flag.IntVar(&dockerWait, "dockerWait", 5, "Time to wait before checking if the container came up")
 	flag.StringVar(&vncPort, "vncPort", "5900", "Port to open for VNC Viewer")
 	flag.StringVar(&dockerBinary, "dockerBinary", "/usr/bin/docker", "docker binary")
+	flag.StringVar(&vagrantBinary, "vagrantBinary", "/usr/local/bin/vagrant", "vagrant binary")
 	flag.BoolVar(&buildImage, "buildImage", false, "Build docker image instead of pulling it from docker image repo")
 	flag.StringVar(&imageName, "imageName", "briancain/dockerdoom", "Name of docker image to use")
 	flag.StringVar(&dockerfile, "dockerfile", ".", "Path to dockerdoom's Dockerfile")
@@ -272,8 +273,9 @@ func main() {
 		log.Print("Docker container started, you can now connect to it with a VNC viewer at port 5900")
 	} else {
 		dockerRun := fmt.Sprintf("%v run -it --rm=true -p %v:%v p 8888 --name=%v %v /bin/bash", dockerBinary, vncPort, vncPort, containerName, imageName)
-		startCmd(dockerRun)
+		go startCmd(dockerRun)
 	}
 
-	startServer(listener, dockerBinary, containerName)
+	//startServer(listener, dockerBinary, containerName)
+	startServer(listener, vagrantBinary, containerName)
 }
