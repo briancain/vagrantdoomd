@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -82,7 +83,19 @@ func checkDocker(dockerName, dockerBinary, arg string) bool {
 	return false
 }
 
-func startServer(listener net.Listener, dockerBinary, containerName string) {
+func runningVMs() []string {
+	var matches []string
+	re := regexp.MustCompile(".*,(.*),state,running")
+	output := outputCmd("vagrant status --machine-readable")
+	match := re.FindAllStringSubmatch(output, -1)
+	for m := range match {
+		matches = append(matches, match[m][1])
+	}
+
+	return matches
+}
+
+func startServer(listener net.Listener, binary, containerName string) {
 	log.Println("Starting server...")
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, os.Interrupt, syscall.SIGTERM)
@@ -102,7 +115,44 @@ func startServer(listener net.Listener, dockerBinary, containerName string) {
 			os.Exit(1)
 		}
 
-		socketLoop(conn, dockerBinary, containerName)
+		//socketLoop(conn, binary, containerName)
+		server(conn, binary, containerName)
+	}
+}
+
+func server(conn net.Conn, binary, containerName string) {
+	stop := false
+	for !stop {
+		bytes := make([]byte, 40960)
+		n, err := conn.Read(bytes)
+		if err != nil {
+			stop = true
+		}
+		bytes = bytes[0:n]
+		strbytes := strings.TrimSpace(string(bytes))
+		log.Print(strbytes)
+		if strbytes == "list" {
+			vms := runningVMs()
+			for vm := range vms {
+				name := vms[vm]
+				log.Printf("virtual machine name: %s", name)
+				if name != containerName {
+					_, err = conn.Write([]byte(name + "\n"))
+					if err != nil {
+						log.Fatal("Could not write to socker file")
+					}
+				}
+			}
+			conn.Close()
+			stop = true
+		} else if strings.HasPrefix(strbytes, "kill ") {
+			parts := strings.Split(strbytes, " ")
+			docker_id := strings.TrimSpace(parts[1])
+			cmd := exec.Command(binary, "rm", "-f", docker_id)
+			go cmd.Run()
+			conn.Close()
+			stop = true
+		}
 	}
 }
 
