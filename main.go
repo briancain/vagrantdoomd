@@ -147,8 +147,8 @@ func server(conn net.Conn, binary, containerName string) {
 			stop = true
 		} else if strings.HasPrefix(strbytes, "kill ") {
 			parts := strings.Split(strbytes, " ")
-			docker_id := strings.TrimSpace(parts[1])
-			cmd := exec.Command(binary, "rm", "-f", docker_id)
+			vagrant_id := strings.TrimSpace(parts[1])
+			cmd := exec.Command("vagrant", "destroy", "-f", vagrant_id)
 			go cmd.Run()
 			conn.Close()
 			stop = true
