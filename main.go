@@ -123,6 +123,9 @@ func startServer(listener net.Listener, binary, containerName string) {
 func server(conn net.Conn, binary, containerName string) {
 	stop := false
 	for !stop {
+		// TODO: FIX ME. Moving vm listing to outside the
+		//       TCP connection to avoid slowdown due to ruby
+		//       startup times
 		bytes := make([]byte, 40960)
 		n, err := conn.Read(bytes)
 		if err != nil {
@@ -130,7 +133,7 @@ func server(conn net.Conn, binary, containerName string) {
 		}
 		bytes = bytes[0:n]
 		strbytes := strings.TrimSpace(string(bytes))
-		log.Print(strbytes)
+		log.Println(strbytes)
 		if strbytes == "list" {
 			vms := runningVMs()
 			for vm := range vms {
@@ -166,7 +169,7 @@ func socketLoop(conn net.Conn, dockerBinary, containerName string) {
 		}
 		bytes = bytes[0:n]
 		strbytes := strings.TrimSpace(string(bytes))
-		log.Print(strbytes)
+		log.Println(strbytes)
 		if strbytes == "list" {
 			output := outputCmd(fmt.Sprintf("%v ps -q", dockerBinary))
 			//cmd := exec.Command("/usr/bin/docker", "inspect", "-f", "{{.Name}}", "`docker", "ps", "-q`")
@@ -239,15 +242,15 @@ func main() {
 	flag.Parse()
 
 	if buildImage {
-		log.Print("Building dockerdoom image, this will take a few minutes...")
+		log.Println("Building dockerdoom image, this will take a few minutes...")
 		runCmd(fmt.Sprintf("%v build -t %v %v", dockerBinary, imageName, dockerfile))
-		log.Print("Image has been built")
+		log.Println("Image has been built")
 	}
 	present := checkDockerImages(imageName, dockerBinary)
 	if !present {
-		log.Print("Pulling image from public repo")
+		log.Println("Pulling image from public repo")
 		runCmd(fmt.Sprintf("%v pull %v", dockerBinary, imageName))
-		log.Print("Image downloaded")
+		log.Println("Image downloaded")
 	}
 
 	present = checkAllDocker(containerName, dockerBinary)
@@ -258,7 +261,7 @@ func main() {
 	//listener,socketFile := createSocket(socketFileFormat)
 	listener := createTCP()
 
-	log.Print("Trying to start docker container ...")
+	log.Println("Trying to start docker container ...")
 	if !asciiDisplay {
 		//dockerRun := fmt.Sprintf("%v run --rm=true -p %v:%v -v %v:/dockerdoom.socket --name=%v %v x11vnc -geometry 640x480 -forever -usepw -create", dockerBinary, vncPort, vncPort, socketFile, containerName, imageName)
 		dockerRun := fmt.Sprintf("%v run --rm=true -it --net=bridge -p %v:%v --name=%v %v x11vnc -geometry 640x480 -forever -usepw -create", dockerBinary, vncPort, vncPort, containerName, imageName)
@@ -270,7 +273,7 @@ func main() {
 		if !present {
 			log.Fatalf("\"%v\" did not lead to the container appearing in \"docker ps\". Please try and start it manually and check \"docker ps\"\n", dockerRun)
 		}
-		log.Print("Docker container started, you can now connect to it with a VNC viewer at port 5900")
+		log.Println("Docker container started, you can now connect to it with a VNC viewer at port 5900")
 	} else {
 		dockerRun := fmt.Sprintf("%v run -it --rm=true -p %v:%v p 8888 --name=%v %v /bin/bash", dockerBinary, vncPort, vncPort, containerName, imageName)
 		go startCmd(dockerRun)

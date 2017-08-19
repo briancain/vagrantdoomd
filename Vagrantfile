@@ -9,4 +9,10 @@ Vagrant.configure("2") do |config|
 
   config.vm.define "vagrantvm2" do |vm|
   end
+
+  config.vm.define "vagrantvm3" do |vm|
+  end
+
+  config.vm.define "vagrantvm4" do |vm|
+  end
 end
